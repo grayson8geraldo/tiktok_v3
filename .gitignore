@@ -1,0 +1,26 @@
+# Видеофайлы (не коммитить медиа)
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.m4v
+*.m4a
+
+# Временные файлы
+*.tmp
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Выходные данные (кроме .gitkeep)
+output/*
+!output/.gitkeep
