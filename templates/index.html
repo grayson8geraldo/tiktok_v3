@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Pipeline — HEVC + Anchor</title>
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --surface: #1a1a2e;
+            --surface2: #16213e;
+            --accent: #e94560;
+            --accent2: #0f3460;
+            --text: #eee;
+            --text2: #aaa;
+            --green: #00c853;
+            --yellow: #ffd600;
+            --red: #ff1744;
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 0;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--surface) 0%, var(--accent2) 100%);
+            padding: 24px 32px;
+            border-bottom: 2px solid var(--accent);
+        }
+        .header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .header p { color: var(--text2); margin-top: 4px; font-size: 0.9rem; }
+        .container {
+            max-width: 1100px;
+            margin: 24px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .full-width { grid-column: 1 / -1; }
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            border: 1px solid #2a2a4a;
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a4a;
+            color: var(--accent);
+        }
+        /* Flash */
+        .flash {
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        .flash-success { background: #1b5e20; color: #c8e6c9; }
+        .flash-warning { background: #e65100; color: #ffe0b2; }
+        .flash-danger  { background: #b71c1c; color: #ffcdd2; }
+        .flash-info    { background: #0d47a1; color: #bbdefb; }
+        /* Forms */
+        label { display: block; font-size: 0.85rem; color: var(--text2); margin-bottom: 6px; }
+        input[type="file"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #3a3a5a;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+        input[type="number"] { width: 100px; }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-accent  { background: var(--accent); color: #fff; }
+        .btn-blue    { background: var(--accent2); color: #fff; }
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+        .btn-danger  { background: var(--red); color: #fff; }
+        .btn-green   { background: var(--green); color: #000; }
+        /* Lists */
+        .file-list { list-style: none; max-height: 240px; overflow-y: auto; }
+        .file-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #1a1a3a;
+            font-size: 0.88rem;
+        }
+        .file-list li:last-child { border-bottom: none; }
+        .file-name { flex: 1; word-break: break-all; }
+        .file-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 10px; }
+        .empty { color: var(--text2); font-style: italic; font-size: 0.85rem; }
+        /* Jobs */
+        .job {
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.88rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .job-processing { background: #1a237e; border: 1px solid #3949ab; }
+        .job-done       { background: #1b5e20; border: 1px solid #388e3c; }
+        .job-error      { background: #b71c1c; border: 1px solid #e53935; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-processing { background: var(--yellow); color: #000; }
+        .badge-done       { background: var(--green); color: #000; }
+        .badge-error      { background: var(--red); color: #fff; }
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid #fff3;
+            border-top-color: var(--yellow);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .results-list { margin-top: 6px; }
+        .results-list a {
+            color: #80cbc4;
+            text-decoration: none;
+            font-size: 0.82rem;
+        }
+        .results-list a:hover { text-decoration: underline; }
+        /* Upload area */
+        .upload-area {
+            border: 2px dashed #3a3a5a;
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 14px;
+            transition: border-color 0.2s;
+        }
+        .upload-area:hover { border-color: var(--accent); }
+        .upload-area input[type="file"] {
+            border: none;
+            background: none;
+            text-align: center;
+        }
+        @media (max-width: 700px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Video Pipeline — HEVC + Anchor</h1>
+    <p>Загрузка якорей, обработка видео, скачивание результатов</p>
+</div>
+
+<div class="container">
+
+    <!-- Flash-сообщения -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="full-width">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- ── Левая колонка: Якоря ── -->
+    <div class="card">
+        <h2>Пул якорей ({{ anchors|length }})</h2>
+
+        <form action="/upload-anchor" method="post" enctype="multipart/form-data">
+            <div class="upload-area">
+                <label>Загрузить якорные ролики (mp4, mov, mkv...)</label>
+                <input type="file" name="anchors" multiple accept="video/*">
+            </div>
+            <button type="submit" class="btn btn-blue">Загрузить якоря</button>
+        </form>
+
+        <br>
+        {% if anchors %}
+        <ul class="file-list">
+            {% for name in anchors %}
+            <li>
+                <span class="file-name">{{ name }}</span>
+                <div class="file-actions">
+                    <form action="/delete-anchor/{{ name }}" method="post" style="margin:0"
+                          onsubmit="return confirm('Удалить якорь «{{ name }}»?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">Нет загруженных якорей</p>
+        {% endif %}
+    </div>
+
+    <!-- ── Правая колонка: Обработка ── -->
+    <div class="card">
+        <h2>Обработка видео</h2>
+
+        <form action="/process" method="post" enctype="multipart/form-data">
+            <div class="upload-area">
+                <label>Основной ролик для обработки</label>
+                <input type="file" name="video" accept="video/*">
+            </div>
+
+            <label>Количество уникальных версий</label>
+            <input type="number" name="count" value="1" min="1" max="50">
+
+            <br><br>
+            <button type="submit" class="btn btn-accent">Запустить обработку</button>
+        </form>
+    </div>
+
+    <!-- ── Задачи ── -->
+    {% if jobs %}
+    <div class="card full-width">
+        <h2>Задачи</h2>
+        {% for jid, job in jobs.items()|reverse %}
+        <div class="job job-{{ job.status }}">
+            <div>
+                {% if job.status == 'processing' %}
+                    <span class="spinner"></span>
+                {% endif %}
+                <strong>#{{ job.id }}</strong> — {{ job.input }}
+                (x{{ job.count }})
+                <span class="badge badge-{{ job.status }}">
+                    {% if job.status == 'processing' %}В обработке
+                    {% elif job.status == 'done' %}Готово
+                    {% else %}Ошибка{% endif %}
+                </span>
+                <span style="color:var(--text2); font-size:0.8rem; margin-left:8px;">{{ job.started }}</span>
+
+                {% if job.error %}
+                    <div style="color:#ff8a80; font-size:0.82rem; margin-top:4px;">{{ job.error }}</div>
+                {% endif %}
+
+                {% if job.results %}
+                <div class="results-list">
+                    {% for r in job.results %}
+                        {% if job.count > 1 %}
+                        <a href="/download/{{ job.id }}/{{ r }}">{{ r }}</a>
+                        {% else %}
+                        <a href="/download/{{ r }}">{{ r }}</a>
+                        {% endif %}
+                        {% if not loop.last %} · {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ── Готовые файлы ── -->
+    <div class="card full-width">
+        <h2>Готовые файлы ({{ outputs|length }})</h2>
+        {% if outputs %}
+        <ul class="file-list">
+            {% for name in outputs %}
+            <li>
+                <span class="file-name">{{ name }}</span>
+                <div class="file-actions">
+                    <a href="/download/{{ name }}" class="btn btn-sm btn-green">Скачать</a>
+                    <form action="/delete-output/{{ name }}" method="post" style="margin:0"
+                          onsubmit="return confirm('Удалить «{{ name }}»?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">Нет обработанных файлов</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Автообновление страницы при наличии активных задач -->
+<script>
+(function() {
+    const hasActive = document.querySelector('.job-processing');
+    if (hasActive) {
+        setTimeout(() => location.reload(), 5000);
+    }
+})();
+</script>
+
+</body>
+</html>
