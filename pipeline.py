@@ -313,9 +313,8 @@ def step3_concat_and_render(
         "-color_trc", "2",
         "-colorspace", "2",
         "-color_range", "tv",
-        # Аудио: HE-AAC 96 kbps
+        # Аудио: AAC 96 kbps
         "-c:a", "aac",
-        "-profile:a", "aac_he",
         "-b:a", AUDIO_BITRATE,
         # Метаданные: убираем всё лишнее
         "-map_metadata", "-1",
