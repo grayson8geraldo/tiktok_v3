@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -69,6 +70,32 @@ def pick_random_anchor(anchor_pool: Path) -> Path:
     chosen = random.choice(files)
     print(f"  [ANCHOR] Выбран: {chosen.name}")
     return chosen
+
+
+def generate_phone_filename() -> str:
+    """
+    Генерирует имя файла, похожее на запись с телефона.
+    Форматы:
+      - IMG_XXXX.MP4          (iPhone)
+      - VID_YYYYMMDD_HHMMSS.mp4  (Android/Samsung)
+    Дата — случайная за последние 30 дней.
+    """
+    now = datetime.now()
+    offset = timedelta(
+        days=random.randint(0, 30),
+        hours=random.randint(0, 23),
+        minutes=random.randint(0, 59),
+        seconds=random.randint(0, 59),
+    )
+    ts = now - offset
+
+    style = random.choice(["iphone", "android"])
+
+    if style == "iphone":
+        num = random.randint(1000, 9999)
+        return f"IMG_{num}.MP4"
+    else:
+        return f"VID_{ts.strftime('%Y%m%d_%H%M%S')}.mp4"
 
 
 def get_random_contrast_delta() -> float:
@@ -387,15 +414,20 @@ def batch_pipeline(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     results = []
-
-    stem = main_video.stem
+    used_names: set[str] = set()
 
     for i in range(1, count + 1):
         print(f"\n{'#' * 60}")
         print(f"  Версия {i}/{count}")
         print(f"{'#' * 60}")
 
-        output_path = output_dir / f"{stem}_v{i:03d}.mp4"
+        # Генерируем уникальное «телефонное» имя
+        name = generate_phone_filename()
+        while name in used_names:
+            name = generate_phone_filename()
+        used_names.add(name)
+
+        output_path = output_dir / name
         result = run_pipeline(anchor_pool, main_video, output_path)
         results.append(result)
 

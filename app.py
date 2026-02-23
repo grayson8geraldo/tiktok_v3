@@ -24,7 +24,7 @@ from flask import (
     url_for,
 )
 
-from pipeline import batch_pipeline, run_pipeline
+from pipeline import batch_pipeline, generate_phone_filename, run_pipeline
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -153,7 +153,7 @@ def process_video():
 def _run_job(job_id: str, input_path: Path, count: int):
     try:
         if count == 1:
-            out_name = f"{input_path.stem}_{job_id}.mp4"
+            out_name = generate_phone_filename()
             out_path = OUTPUT_DIR / out_name
             run_pipeline(ANCHOR_POOL, input_path, out_path)
             jobs[job_id]["results"] = [out_name]
